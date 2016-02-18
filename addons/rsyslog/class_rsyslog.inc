@@ -53,25 +53,20 @@ class rsyslog extends plugin
     }
 
     // Check for installed mysql extension, if missing abort
-    $this->mysql_extension_installed = is_callable("mysql_connect");
+    $this->mysql_extension_installed = is_callable("mysqli_connect");
     if(!$this->mysql_extension_installed) return;
 
     // Test server connetivity 
     $ui = get_userinfo();
     foreach($this->servers as $name => $server)  
     {
-      $link = @mysql_pconnect($server['cn'], $server['User'], $server['Password']);
-      if ($link === FALSE){
-        new log("debug","gosa_logging","dbconnect",array(),@mysql_error());
+      $link = new mysqli('p:'.$server['cn'], $server['User'], $server['Password'], $server['Database']);
+      if ($link->connect_errno !== 0){
+        new log("debug","gosa_logging","dbconnect",array(), $link->connect_error);
         $this->servers[$name]['status'] = "connectfailed";
-        $this->servers[$name]['error']  = @mysql_error();
+        $this->servers[$name]['error']  = $link->connect_error;
         continue;
-      }elseif (! @mysql_select_db($server['Database'])){
-        new log("debug","gosa_logging","selectdb",array(),@mysql_error());
-        $this->servers[$name]['status'] = "dbmissing";
-        $this->servers[$name]['error']  = @mysql_error();
-        continue;
-      }else{
+      } else {
         $this->servers[$name]['status'] = "ok";
         $this->servers[$name]['error']  = "";
 
@@ -81,24 +76,24 @@ class rsyslog extends plugin
         // Get list of Hosts using this log server..
         if(preg_match('/r/', $this->servers[$name]['ACL'])){
           $query = "SELECT distinct(FromHost) FROM SystemEvents;";
-          $res = @mysql_query($query, $link);
+          $res = $link->query($query);
           if($res){
-            while($attrs = @mysql_fetch_assoc($res)){
+            while($attrs = $res->fetch_assoc($res)){
               $this->servers[$name]['Hosts'][$attrs['FromHost']] = $attrs['FromHost'];  
             }
           }else{
             $this->servers[$name]['status'] = "query_failed";
-            $this->servers[$name]['error']  = @mysql_error();
+            $this->servers[$name]['error']  = $link->error;
           }
           $query = "SELECT distinct(Priority) FROM SystemEvents ORDER BY Priority;";
-          $res = @mysql_query($query, $link);
+          $res = $link->query($query);
           if($res){
-            while($attrs = @mysql_fetch_assoc($res)){
+            while($attrs = $res->fetch_assoc($res)){
               $this->servers[$name]['Priorities'][$attrs['Priority']] = $attrs['Priority'];  
             }
           }else{
             $this->servers[$name]['status'] = "query_failed";
-            $this->servers[$name]['error']  = @mysql_error();
+            $this->servers[$name]['error']  = $link->error;
           }
         }
       }
@@ -163,15 +158,11 @@ class rsyslog extends plugin
     {
         $result = array();
         foreach($this->servers as $name => $server){
-            $link = @mysql_pconnect($server['cn'], $server['User'], $server['Password']);
-            if ($link === FALSE){
-                new log("debug","gosa_logging","dbconnect",array(),@mysql_error());
+            $link = new mysqli('p:'.$server['cn'], $server['User'], $server['Password'], $server['Database']);
+            if ($link->connect_errno !== 0){
+                new log("debug","gosa_logging","dbconnect",array(),$link->error);
                 $this->servers[$name]['status'] = "connectfailed";
-                $this->servers[$name]['error']  = @mysql_error();
-            }elseif (! @mysql_select_db($server['Database'])){
-                new log("debug","gosa_logging","selectdb",array(),@mysql_error());
-                $this->servers[$name]['status'] = "dbmissing";
-                $this->servers[$name]['error']  = @mysql_error();
+                $this->servers[$name]['error']  = $link->error;
             }else{
                 $this->servers[$name]['status'] = "ok";
                 $this->servers[$name]['error']  = "";
@@ -179,9 +170,9 @@ class rsyslog extends plugin
 
             if($link){
                 $query = "SELECT * FROM SystemEvents WHERE Message like '%GOsa%' ORDER BY ID DESC LIMIT 50";
-                $res = mysql_query($query, $link);
+                $res = $link->query($query);
                 if($res){
-                    while($attrs = mysql_fetch_assoc($res)){
+                    while($attrs = $res->fetch_assoc()){
                         $result[] = $attrs; 
                     }
                 }
@@ -237,15 +228,11 @@ class rsyslog extends plugin
 
 
     $server = $this->servers[$name];
-    $link = @mysql_pconnect($server['cn'], $server['User'], $server['Password']);
-    if ($link === FALSE){
-      new log("debug","gosa_logging","dbconnect",array(),@mysql_error());
+    $link = new mysqli('p:'.$server['cn'], $server['User'], $server['Password'], $server['Database']);
+    if ($link !== 0){
+      new log("debug","gosa_logging","dbconnect",array(),$link->connect_error);
       $this->servers[$name]['status'] = "connectfailed";
-      $this->servers[$name]['error']  = @mysql_error();
-    }elseif (! @mysql_select_db($server['Database'])){
-      new log("debug","gosa_logging","selectdb",array(),@mysql_error());
-      $this->servers[$name]['status'] = "dbmissing";
-      $this->servers[$name]['error']  = @mysql_error();
+      $this->servers[$name]['error']  = $link->connect_error;
     }else{
       $this->servers[$name]['status'] = "ok";
       $this->servers[$name]['error']  = "";
@@ -261,27 +248,27 @@ class rsyslog extends plugin
 
       $filter = "FROM SystemEvents WHERE 1=1 ";
       if($host != "%%"){
-        $filter.= " AND FromHost like '".mysql_real_escape_string($host)."' ";
+        $filter.= " AND FromHost like '".$link->real_escape_string($host)."' ";
       }
       if($prio != "%%"){
-        $filter.= "AND Priority like '".mysql_real_escape_string($prio)."' ";
+        $filter.= "AND Priority like '".$link->real_escape_string($prio)."' ";
       }
       $filter.= "AND DeviceReportedTime >= '".(date("Y.m.d 00:00:00", strtotime($this->startTime)))."' ";     
       $filter.= "AND DeviceReportedTime <= '".(date("Y.m.d 23:59:59", strtotime($this->stopTime)))."' ";     
 
       if(!empty($this->search_for)){
-          $filter.= "AND ( ( SysLogTag like '%".mysql_real_escape_string($this->search_for).
-              "%' ) OR  ( Message like '%".mysql_real_escape_string($this->search_for)."%' ) ) ";
+          $filter.= "AND ( ( SysLogTag like '%".$link->real_escape_string($this->search_for).
+              "%' ) OR  ( Message like '%".$link->real_escape_string($this->search_for)."%' ) ) ";
       }
 
       // Detect amount of matching entries 
       $query = "SELECT count(ID) as `amount` ".$filter;
-      $res = @mysql_query($query, $link);
-      if($res && $attrs = @mysql_fetch_assoc($res)){ 
+      $res = $link->query($query);
+      if($res && $attrs = $res->fetch_assoc()){ 
         $result['count'] = $attrs['amount'];
       }else{
         $this->servers[$name]['status'] = "query_failed";
-        $this->servers[$name]['error']  = @mysql_error();
+        $this->servers[$name]['error']  = $link->error;
       }
 
       if($result['count']){
@@ -296,9 +283,9 @@ class rsyslog extends plugin
         }
 
         $query = "SELECT * ".$filter;
-        $res = mysql_query($query, $link);
+        $res = $link->query($query);
         if($res){
-          while($attrs = @mysql_fetch_assoc($res)){
+          while($attrs = $res->fetch_assoc()){
             $attrs['DeviceReportedTime']= $this->time2local($attrs['DeviceReportedTime']);
             $attrs['Facility']= $this->facility2string($attrs['Facility']);
             $attrs['Priority']= $this->severity2string($attrs['Priority']);
@@ -314,7 +301,7 @@ class rsyslog extends plugin
           $this->servers[$name]['error']  = "";
         }else{
           $this->servers[$name]['status'] = "query_failed";
-          $this->servers[$name]['error']  = @mysql_error();
+          $this->servers[$name]['error']  = $link->error;
         }
       }
     }
