@@ -147,7 +147,7 @@ class rSyslogServer extends goService
             new log("create", "server/" . get_class($this), $this->dn, array_keys($this->attrs), $ldap->get_error());
         }
         if (!$ldap->success()) {
-            msg_dialog::display(_("LDAP error"), msgPool::ldaperror($ldap->get_error(), $this->dn, 0, get_class()));
+            msg_dialog::display(_("LDAP error"), msgPool::ldaperror($ldap->get_error(), $this->dn, 0, __CLASS__));
         }
     }
 
@@ -179,7 +179,7 @@ class rSyslogServer extends goService
             "plPriority"    => 99,
             "plRequirements" => array(
                 'ldapSchema' => array('goSyslogServer' => '>=2.7', 'goLogDBServer' => '>=2.7'),
-                'onFailureDisablePlugin' => array(get_class(), 'rsyslog'),
+                'onFailureDisablePlugin' => array(__CLASS__, 'rsyslog'),
             ),
             "plSection"     => array("administration"),
             "plCategory"    => array("server"),
