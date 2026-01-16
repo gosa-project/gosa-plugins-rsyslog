@@ -21,31 +21,30 @@
 
 /* Remove locks created by this plugin
 */
-if ($remove_lock){
-  if(session::is_set('rsyslogObject')){
-	// Nothing to unlock here
-  }
+if ($remove_lock) {
+    if (session::is_set('rsyslogObject')) {
+        // Nothing to unlock here
+    }
 }
 
 /* Remove this plugin from session
 */
-if ( $cleanup ){
-  session::un_set('rsyslogObject');
-}else{
+if ($cleanup) {
+    session::un_set('rsyslogObject');
+} else {
 
 
-	/* Create logview object on demand */
-	if (!session::is_set('rsyslogObject')){
-		session::set('rsyslogObject',new rsyslog($config));
-	}
-	$rsyslogObject = session::get('rsyslogObject');
+    /* Create logview object on demand */
+    if (!session::is_set('rsyslogObject')) {
+        session::set('rsyslogObject', new rsyslog($config));
+    }
+    $rsyslogObject = session::get('rsyslogObject');
 
-	/* Execute formular */
-	$display= $rsyslogObject->save_object();
-	$display= $rsyslogObject->execute ();
-	$display.= "<input type=\"hidden\" name=\"ignore\">\n";
+    /* Execute formular */
+    $display = $rsyslogObject->save_object();
+    $display = $rsyslogObject->execute();
+    $display .= "<input type=\"hidden\" name=\"ignore\">\n";
 
-	/* Store changes  in session */
-	session::set('rsyslogObject',$rsyslogObject);
+    /* Store changes  in session */
+    session::set('rsyslogObject', $rsyslogObject);
 }
-?>
